@@ -476,3 +476,111 @@ end
 
 ## Test kế thừa
 
+Code ví dụ:
+
+Giả sử Bicycle là một super class như sau
+
+```ruby
+class Bicycle
+  attr_reader :size, :chain, :tire_size
+
+  def initialize(args={})
+    @size       = args[:size]
+    @chain      = args[:chain]     || default_chain
+    @tire_size  = args[:tire_size] || default_tire_size
+    post_initialize(args)
+  end
+
+  def spares
+    {tire_size: tire_size, chain: chain}.merge(local_spares)
+  end
+
+  def default_tire_size
+    raise NotImplementedError
+  end
+
+  # subclasses may override
+  def post_initialize(args) nil; end
+
+  def local_spares {}; end
+
+  def default_chain '10-speed'; end
+end
+```
+
+#### Đảm bảo các method được kế thừa đúng
+
+Điều đầu tiên ta cần đảm bảo là tất cả các object trong cây kế thừa đều có đủ các method mà nó kế thừa từ lớp cha.
+
+Ví dụ:
+
+```ruby
+RSpec.shared_examples "Bicycle interface" do |object|
+  it "should respond to default_tire_size" do
+    expect(object).to respond_to :default_tire_size
+  end
+
+  it "should respond to default_chain" do
+    expect(object).to respond_to :default_chain
+  end
+
+  it "should respond to chain" do
+    expect(object).to respond_to :chain
+  end
+
+  it "should respond to size" do
+    expect(object).to respond_to :size
+  end
+
+  it "should respond to tire_size" do
+    expect(object).to respond_to :tire_size
+  end
+
+  it "should respond to spares" do
+    expect(object).to respond_to :spares
+  end
+end
+```
+
+Bất kỳ object nào mà pass được test trên đều có thể đóng vai trò như một `Bicycle`. Tất cả các object thuộc cây kế thừa của `Bicycle` đều phải pass hết test trên.
+
+#### Xác nhận trách nhiệm của các lớp con
+
+Do một số method mà subclass sẽ cần override từ superclass nên ta cần một test chung để đảm bảo là các subclass chắc chắn sẽ tồn tại các method này.
+
+Ví dụ
+
+```ruby
+RSpec.shared_examples "Bicycle subclass interface" do |object|
+  it "should respond to default_tire_size" do
+    expect(object).to respond_to :default_tire_size
+  end
+
+  it "should respond to post_initialize" do
+    expect(object).to respond_to :post_initialize
+  end
+
+  it "should respond to local_spares" do
+    expect(object).to respond_to :spares
+  end
+
+  it "should respond to default_tire_size" do
+    expect(object).to respond_to :tire_size
+  end
+end
+```
+
+Sau khi đã có một test chung thì ta có thể viết test riêng cho mỗi subclass.
+
+Trong những method trên, duy chỉ có `default_tire_size` là bắt buộc phải override lại (raise NotImplementedError) nên ngoài việc test riêng từng subclass, ta cần đảm bảo superclass luôn raise lên error khi gọi method này.
+
+```ruby
+describe Bicycle do
+  let(:bicyle) {Bicycle.new}
+  describe "#default_tire_size" do
+    it {expect{bicyle.default_tire_size}.to raise_error(NotImplementedError)}
+  end
+end
+```
+
+
